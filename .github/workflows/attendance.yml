@@ -1,0 +1,37 @@
+name: Daily Attendance Check
+
+on:
+  schedule:
+    # 8:00 AM IST corresponds to 2:30 AM UTC (IST is UTC + 5:30)
+    - cron: '30 2 * * *'
+  workflow_dispatch: # Allows manual trigger from the Actions tab anytime!
+
+jobs:
+  check-attendance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Run Attendance Check & Send Telegram Alert
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          INTERNMO_USER: ${{ secrets.INTERNMO_USER }}
+          INTERNMO_PASSWORD: ${{ secrets.INTERNMO_PASSWORD }}
+          TIMEZONE: "Asia/Kolkata"
+        run: |
+          python check_attendance.py
