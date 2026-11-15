@@ -1,0 +1,31 @@
+services:
+  - type: worker
+    name: internmo-telegram-bot
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: INTERNMO_USER
+        sync: false
+      - key: INTERNMO_PASSWORD
+        sync: false
+      - key: TIMEZONE
+        value: Asia/Kolkata
+      - key: CHECK_HOUR
+        value: "8"
+      - key: CHECK_MINUTE
+        value: "0"
+      - key: DB_PATH
+        value: /data/attendance.db
+    disk:
+      name: attendance-data
+      mountPath: /data
+      sizeGB: 1
+
