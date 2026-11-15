@@ -22,7 +22,7 @@ async def notify():
     now = datetime.now(TIMEZONE)
 
     print("Checking Internmo attendance...")
-    result = check_internmo()
+    result = await asyncio.to_thread(check_internmo)
     print(f"Result: {result}")
 
     try:
@@ -69,3 +69,4 @@ async def notify():
 
 if __name__ == "__main__":
     asyncio.run(notify())
+
