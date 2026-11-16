@@ -2,10 +2,11 @@ name: Daily Attendance Check
 
 on:
   schedule:
-    # Runs at 7:52 AM IST (2:22 AM UTC) - off-peak minute avoids GitHub cron delays
-    - cron: '22 2 * * *'
-    # Backup run at 8:22 AM IST (2:52 AM UTC) in case GitHub queues the earlier run
-    - cron: '52 2 * * *'
+    # Quick test schedule: runs at 10:18 AM IST (4:48 AM UTC)
+    - cron: '48 4 * * *'
+    # Regular daily schedules:
+    - cron: '22 2 * * *' # 7:52 AM IST
+    - cron: '52 2 * * *' # 8:22 AM IST
   workflow_dispatch: # Allows manual trigger from the Actions tab anytime!
 
 jobs:
