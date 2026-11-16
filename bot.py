@@ -99,11 +99,9 @@ def check_internmo():
     with sync_playwright() as p:
 
         browser = p.chromium.launch(headless=True)
-
-        page = browser.new_page()
+        page = browser.new_page(viewport={"width": 1366, "height": 900})
 
         try:
-
             logger.info("Opening Internmo")
 
             page.goto(
@@ -132,6 +130,19 @@ def check_internmo():
                 timeout=30000
             )
 
+            page.wait_for_timeout(2000)
+
+            # Check if Mark Present button is directly on dashboard or attendance page
+            mark_button = page.get_by_role(
+                "button",
+                name=re.compile(r"^(?:mark\s+)?present$", re.IGNORECASE)
+            )
+
+            if mark_button.count() >= 1 and mark_button.first.is_visible():
+                logger.info("Found Mark Present button on dashboard. Clicking it...")
+                mark_button.first.click()
+                page.wait_for_timeout(3000)
+
             # Open attendance page
             page.get_by_text(
                 "Attendance",
@@ -140,10 +151,18 @@ def check_internmo():
 
             page.wait_for_timeout(2500)
 
-            page_text = page.locator(
-                "body"
-            ).inner_text()
+            # Check if Mark Present button is on the attendance page
+            attendance_mark_button = page.get_by_role(
+                "button",
+                name=re.compile(r"^(?:mark\s+)?present$", re.IGNORECASE)
+            )
 
+            if attendance_mark_button.count() >= 1 and attendance_mark_button.first.is_visible():
+                logger.info("Found Mark Present button on Attendance page. Clicking it...")
+                attendance_mark_button.first.click()
+                page.wait_for_timeout(3000)
+
+            page_text = page.locator("body").inner_text()
             upper_text = page_text.upper()
 
             logger.info("Attendance page inspected")
@@ -151,21 +170,17 @@ def check_internmo():
             if (
                 "PRESENT TODAY" in upper_text
                 or "MARKED PRESENT FOR TODAY" in upper_text
+                or "PRESENT" in upper_text
             ):
                 return "PRESENT"
 
-            # A missing status is not necessarily proof of absence.
-            # Only report it as unconfirmed.
             return "NOT_CONFIRMED"
 
         except Exception as error:
-
             logger.exception("Internmo check failed")
-
             return "ERROR: " + str(error)[:300]
 
         finally:
-
             browser.close()
 
 
