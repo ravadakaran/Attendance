@@ -96,92 +96,106 @@ def check_internmo():
     if not USERNAME or not PASSWORD:
         return "ERROR: Missing Internmo credentials."
 
-    with sync_playwright() as p:
+    max_attempts = 3
+    last_error = ""
 
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": 1366, "height": 900})
-
-        try:
-            logger.info("Opening Internmo")
-
-            page.goto(
-                PORTAL_URL,
-                wait_until="domcontentloaded",
-                timeout=45000
+    for attempt in range(1, max_attempts + 1):
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=["--disable-dev-shm-usage", "--no-sandbox"]
             )
-
-            # Login
-            page.get_by_placeholder(
-                "you@example.com or PMIN1001"
-            ).fill(USERNAME)
-
-            page.locator(
-                "input[type='password']"
-            ).fill(PASSWORD)
-
-            page.get_by_role(
-                "button",
-                name="Sign in",
-                exact=True
-            ).click()
-
-            page.wait_for_url(
-                "**/projects/user**",
-                timeout=30000
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                viewport={"width": 1366, "height": 900}
             )
+            page = context.new_page()
 
-            page.wait_for_timeout(2000)
+            try:
+                logger.info(f"Opening Internmo (Attempt {attempt}/{max_attempts})...")
 
-            # Check if Mark Present button is directly on dashboard or attendance page
-            mark_button = page.get_by_role(
-                "button",
-                name=re.compile(r"^(?:mark\s+)?present$", re.IGNORECASE)
-            )
+                page.goto(
+                    PORTAL_URL,
+                    wait_until="load",
+                    timeout=60000
+                )
 
-            if mark_button.count() >= 1 and mark_button.first.is_visible():
-                logger.info("Found Mark Present button on dashboard. Clicking it...")
-                mark_button.first.click()
+                page.wait_for_timeout(2000)
+
+                # Login
+                page.get_by_placeholder(
+                    "you@example.com or PMIN1001"
+                ).fill(USERNAME)
+
+                page.locator(
+                    "input[type='password']"
+                ).fill(PASSWORD)
+
+                page.get_by_role(
+                    "button",
+                    name="Sign in",
+                    exact=True
+                ).click()
+
+                page.wait_for_url(
+                    "**/projects/user**",
+                    timeout=45000
+                )
+
                 page.wait_for_timeout(3000)
 
-            # Open attendance page
-            page.get_by_text(
-                "Attendance",
-                exact=True
-            ).first.click()
+                # Check if Mark Present button is directly on dashboard or attendance page
+                mark_button = page.get_by_role(
+                    "button",
+                    name=re.compile(r"^(?:mark\s+)?present$", re.IGNORECASE)
+                )
 
-            page.wait_for_timeout(2500)
+                if mark_button.count() >= 1 and mark_button.first.is_visible():
+                    logger.info("Found Mark Present button on dashboard. Clicking it...")
+                    mark_button.first.click()
+                    page.wait_for_timeout(3000)
 
-            # Check if Mark Present button is on the attendance page
-            attendance_mark_button = page.get_by_role(
-                "button",
-                name=re.compile(r"^(?:mark\s+)?present$", re.IGNORECASE)
-            )
+                # Open attendance page
+                attendance_tab = page.get_by_text("Attendance", exact=True).first
+                if attendance_tab.is_visible():
+                    attendance_tab.click()
+                    page.wait_for_timeout(2500)
 
-            if attendance_mark_button.count() >= 1 and attendance_mark_button.first.is_visible():
-                logger.info("Found Mark Present button on Attendance page. Clicking it...")
-                attendance_mark_button.first.click()
-                page.wait_for_timeout(3000)
+                # Check if Mark Present button is on the attendance page
+                attendance_mark_button = page.get_by_role(
+                    "button",
+                    name=re.compile(r"^(?:mark\s+)?present$", re.IGNORECASE)
+                )
 
-            page_text = page.locator("body").inner_text()
-            upper_text = page_text.upper()
+                if attendance_mark_button.count() >= 1 and attendance_mark_button.first.is_visible():
+                    logger.info("Found Mark Present button on Attendance page. Clicking it...")
+                    attendance_mark_button.first.click()
+                    page.wait_for_timeout(3000)
 
-            logger.info("Attendance page inspected")
+                page_text = page.locator("body").inner_text()
+                upper_text = page_text.upper()
 
-            if (
-                "PRESENT TODAY" in upper_text
-                or "MARKED PRESENT FOR TODAY" in upper_text
-                or "PRESENT" in upper_text
-            ):
-                return "PRESENT"
+                logger.info("Attendance page inspected")
 
-            return "NOT_CONFIRMED"
+                if (
+                    "PRESENT TODAY" in upper_text
+                    or "MARKED PRESENT FOR TODAY" in upper_text
+                    or "PRESENT" in upper_text
+                ):
+                    return "PRESENT"
 
-        except Exception as error:
-            logger.exception("Internmo check failed")
-            return "ERROR: " + str(error)[:300]
+                return "NOT_CONFIRMED"
 
-        finally:
-            browser.close()
+            except Exception as error:
+                last_error = str(error)[:300]
+                logger.warning(f"Attempt {attempt} failed: {last_error}")
+                if attempt < max_attempts:
+                    import time
+                    time.sleep(5)
+            finally:
+                browser.close()
+
+    return f"ERROR (after {max_attempts} attempts): {last_error}"
 
 
 # ---------------- TELEGRAM SECURITY ----------------
